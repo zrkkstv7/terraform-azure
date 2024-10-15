@@ -1,0 +1,44 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+packages:
+  - apache2
+  - php
+  - libapache2-mod-php
+  - php-mysql
+  - mysql-server
+
+runcmd:
+  # Start MySQL service
+  - sudo systemctl start mysql
+
+  # Enable Apache mod_rewrite for WordPress permalinks
+  - sudo a2enmod rewrite
+
+  # Remove existing files in /var/www/html
+  - sudo rm -rf /var/www/html/*
+
+  # Download and install WordPress
+  - wget -q -O /tmp/latest.tar.gz http://wordpress.org/latest.tar.gz
+  - sudo tar -xzvf /tmp/latest.tar.gz -C /var/www/html --strip-components=1
+  - sudo chown -R www-data:www-data /var/www/html/
+  - sudo chmod -R 755 /var/www/html/
+
+  # Set up MySQL database and user
+  - sudo mysql -e "CREATE DATABASE IF NOT EXISTS wordpress_db;"
+  - sudo mysql -e "CREATE USER IF NOT EXISTS 'wordpress_user'@'localhost' IDENTIFIED BY 'password';"
+  - sudo mysql -e "GRANT ALL PRIVILEGES ON wordpress_db.* TO 'wordpress_user'@'localhost';"
+  - sudo mysql -e "FLUSH PRIVILEGES;"
+
+  # Copy wp-config sample and update it with MySQL connection details
+  - sudo cp /var/www/html/wp-config-sample.php /var/www/html/wp-config.php
+  - sudo sed -i "s/database_name_here/wordpress_db/g" /var/www/html/wp-config.php
+  - sudo sed -i "s/username_here/wordpress_user/g" /var/www/html/wp-config.php
+  - sudo sed -i "s/password_here/password/g" /var/www/html/wp-config.php
+  - sudo sed -i "s/localhost/127.0.0.1/g" /var/www/html/wp-config.php
+
+  # Change default homepage
+  - echo "<?php echo '<h1>Welcome to my WordPress homepage</h1>'; ?>" | sudo tee /var/www/html/index.php
+
+  # Restart Apache to ensure everything works
+  - sudo systemctl restart apache2
